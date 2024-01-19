@@ -77,7 +77,7 @@ class Model(pl.LightningModule):
         x, y = batch
         preds = self(x)
         loss = nn.CrossEntropyLoss()(preds, y)
-        acc = self.test_acc(preds, y)
+        acc = self.val_acc(preds, y)
         self.log('train_loss', torch.tensor([loss]))
         self.log('train_acc', torch.tensor([acc]))
         return {"loss":loss,"preds":preds.detach(),"y":y.detach()}
@@ -106,7 +106,7 @@ class Model(pl.LightningModule):
         return [optimizer], [scheduler]
     
 model = Model(net)
-summary = pl.utilities.model_summary.ModelSummary(model,max_depth=-1)
+summary = pl.utilities.model_summary.ModelSummary(model, max_depth=-1)
 print(summary)
 
 pl.seed_everything(42)
@@ -129,7 +129,7 @@ trainer = pl.Trainer(max_epochs=20,
 
 #训练模型
 trainer.fit(model, data_mnist)
-
+trainer.test(model, datamodule=data_mnist)
 
 #result = trainer.test(model, data_mnist.test_dataloader(), ckpt_path='lightning_logs/version_2/checkpoints/epoch=19-step=26260.ckpt')
 #print(result)

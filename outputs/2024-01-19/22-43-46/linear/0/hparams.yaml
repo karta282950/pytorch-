@@ -1,0 +1,7 @@
+data_dir: /Users/yukaisun/Documents/Research/pytorch學習/mnist
+batch_size: 32
+hidden_dim: 128
+num_workers: 0
+num_epochs: 20
+learning_rate: 0.001
+exp_name: exp001

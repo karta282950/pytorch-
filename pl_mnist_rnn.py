@@ -27,7 +27,7 @@ hidden_size = 128
 num_layers = 2
 
 class MNISTDataMudle(pl.LightningDataModule):
-    def __init__(self, data_dir: str='./mnist', batch_size: int=100, num_workers: int=1):
+    def __init__(self, data_dir: str='./data/mnist', batch_size: int=100, num_workers: int=1):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size

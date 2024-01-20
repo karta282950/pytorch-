@@ -2,7 +2,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from pathlib import Path
 
-@hydra.main(config_path="config", config_name="train", version_base="1.1")
+@hydra.main(config_path="config", config_name="demo_hydra", version_base="1.1")
 
 def main(config: DictConfig):
     running_dir = str(hydra.utils.get_original_cwd())

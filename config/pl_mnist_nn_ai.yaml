@@ -1,5 +1,15 @@
 # ---------- Overriding hydra default configs ----------
 
+hydra:
+  job:
+    name: train
+    chdir: true
+  run:
+    dir: ${dir.output_dir}/${hydra.job.name}/${exp_name}/single
+  sweep:
+    dir: ${dir.output_dir}/${hydra.job.name}/${exp_name}
+    subdir: run${hydra.job.num}
+
 # Dataset
 data_dir: '/Users/yukaisun/Documents/Research/pytorch學習/mnist'
 
@@ -7,6 +17,6 @@ data_dir: '/Users/yukaisun/Documents/Research/pytorch學習/mnist'
 batch_size: 32
 hidden_dim: 128
 num_workers: 0
-num_epochs: 20
+num_epochs: 1
 learning_rate: 1e-3
 exp_name: 'exp001'

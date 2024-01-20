@@ -14,7 +14,7 @@ from pytorch_lightning.loggers.csv_logs import CSVLogger
 from einops import rearrange
 from models.networks import LinearModel
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from pathlib import Path
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -24,7 +24,6 @@ class MNISTDataMudle(pl.LightningDataModule):
     def __init__(self, cfg: DictConfig):
         super().__init__()
         self.cfg = cfg
-        
         self.data_dir = self.cfg.data_dir
         self.batch_size = self.cfg.batch_size
         self.num_workers = self.cfg.num_workers
@@ -83,7 +82,7 @@ class Model(pl.LightningModule):
         acc = self.acc(preds, y)
         self.log('val_loss', torch.tensor([loss]))
         self.log('val_acc', torch.tensor([acc]))
-        return {"loss":loss,"preds":preds.detach(),"y":y.detach()}
+        return {"loss":loss, "preds":preds.detach(), "y":y.detach()}
     
     def test_step(self, batch, batch_idx):
         x, y = batch
@@ -101,6 +100,10 @@ class Model(pl.LightningModule):
                                                         eta_min=self.learning_rate/1e2)
         return [optimizer], [scheduler]
     
+    def validation_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        return {'val_loss': avg_loss}
+
 
 @hydra.main(config_path="config", config_name="pl_mnist_nn_ai", version_base="1.1")
 def main(cfg: DictConfig):
@@ -112,23 +115,26 @@ def main(cfg: DictConfig):
     ckpt_callback = pl.callbacks.ModelCheckpoint(monitor='val_acc', save_top_k=1, mode='max')
     pbar = pl.callbacks.TQDMProgressBar(refresh_rate=1)
     early_stopping = pl.callbacks.EarlyStopping(monitor='val_loss', patience=3, mode='min')
-    csv_logger = CSVLogger('./', name='linear', version='0'),
+    #csv_logger = CSVLogger('./', name='linear', version='0'),
     
-    #pl_logger = WandbLogger(
-    #    name=cfg.exp_name,
-    #    project="")
+    pl_logger = WandbLogger(
+        name=cfg.exp_name,
+        project="pl_mnist")
     
     model = Model(cfg)
     trainer = pl.Trainer(max_epochs=cfg.num_epochs,
                       callbacks=[ckpt_callback, pbar, early_stopping],
-                      logger=csv_logger,
+                      #logger=csv_logger,
+                      logger=pl_logger,
                       enable_model_summary=True,
                       accelerator='auto',
                       devices=1,
                       num_sanity_val_steps=1,
-                      benchmark=True)
+                      benchmark=True,
+                      fast_dev_run=True)
     
     trainer.fit(model, data_mnist)
+    '''model = model.load_from_checkpoint(ckpt_callback.best_model_path, cfg=cfg)'''
 
 if __name__== '__main__':
     main()

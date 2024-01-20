@@ -1,5 +1,5 @@
+import torch
 from torch import nn 
-
 from einops import rearrange
 
 class LinearModel(nn.Module):
@@ -15,3 +15,9 @@ class LinearModel(nn.Module):
         x = rearrange(x, 'b 1 x y -> b (x y)', x=28, y=28)
         x = self.net(x)
         return x
+
+if __name__=='__main__':
+    model = LinearModel(hidden_dim=100)
+    inputs = torch.ones((64, 1, 28, 28))
+    outputs = model(inputs)
+    print(outputs)

@@ -61,8 +61,8 @@ class Model(pl.LightningModule):
         preds = self(x)
         loss = nn.CrossEntropyLoss()(preds, y)
         acc = self.acc(preds, y)
-        self.log('train_loss', torch.tensor([loss]), prog_bar=True)
-        self.log('train_acc', torch.tensor([acc]), prog_bar=True)
+        self.log('train_loss', torch.tensor([loss]), prog_bar=True, logger=True)
+        self.log('train_acc', torch.tensor([acc]), prog_bar=True, logger=True)
         return {"loss":loss,"preds":preds.detach(),"y":y.detach()}
     
     def validation_step(self, batch, batch_idx):
@@ -70,8 +70,8 @@ class Model(pl.LightningModule):
         preds = self(x)
         loss = nn.CrossEntropyLoss()(preds, y)
         acc = self.acc(preds, y)
-        self.log('val_loss', torch.tensor([loss]), prog_bar=True)
-        self.log('val_acc', torch.tensor([acc]), prog_bar=True)
+        self.log('val_loss', torch.tensor([loss]), prog_bar=True, logger=True)
+        self.log('val_acc', torch.tensor([acc]), prog_bar=True, logger=True)
         return {"loss":loss,"preds":preds.detach(),"y":y.detach()}
     
     def test_step(self, batch, batch_idx):
@@ -79,8 +79,8 @@ class Model(pl.LightningModule):
         preds = self(x)
         loss = nn.CrossEntropyLoss()(preds, y)
         acc = self.acc(preds, y)
-        self.log('test_loss', torch.tensor([loss]), prog_bar=True)
-        self.log('test_acc', torch.tensor([acc]), prog_bar=True)
+        self.log('test_loss', torch.tensor([loss]), prog_bar=True, logger=True)
+        self.log('test_acc', torch.tensor([acc]), prog_bar=True, logger=True)
         return {"loss":loss,"preds":preds.detach(),"y":y.detach()}
     
     def configure_optimizers(self):
@@ -113,11 +113,12 @@ def main(cfg: DictConfig):
         )
 
     #训练模型
-    #trainer.fit(model, data_cifar10)
-    #trainer.test(model, datamodule=data_cifar10)
+    trainer.fit(model, data_cifar10)
+    trainer.test(model, datamodule=data_cifar10)
     model = model.load_from_checkpoint(
         ckpt_callback.best_model_path,
     )
+    model.freeze()
     model.eval()
     idx = 0
     for inputs, lables in data_cifar10.test_dataloader():

@@ -5,6 +5,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import torch
 import torch.nn as nn 
 from torch import optim
+from torchsummary import summary
 import random
 
 '''
@@ -45,20 +46,47 @@ def create_sequences(data, n_past):
     
     return torch.Tensor(np.array(X)), torch.Tensor(np.array(Y))
 
+class WrappedDataLoader:
+    def __init__(self, dataloader, func):
+        self.dataloader = dataloader
+        self.func = func
+        
+    def __len__(self):
+        return len(self.dataloader)
+    
+    def __iter__(self):
+        iter_dataloader = iter(self.dataloader)
+        for batch in iter_dataloader:
+            yield self.func(*batch)
+            
+def transpose(x, y):
+    # x and y is [batch size, seq len, feature size]
+    # to make them work with default assumption of LSTM,
+    # here we transpose the first and second dimension
+    # return size = [seq len, batch size, feature size]
+    return x.transpose(0, 1), y.transpose(0, 1)
+
 data = df[[c for c in df.columns if c not in ['Date','Adj Close']]].values
 X_train, Y_train, X_val, Y_val, scaler = preprocess(data, train_ratio=0.8, n_past=20)
 
 batch_size = 32
 train_set = torch.utils.data.TensorDataset(X_train, Y_train)
 train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=False)
+train_loader = WrappedDataLoader(train_loader, transpose)
+
+#for inputs, labbels in train_loader():
+#    print(inputs.shape)
+#    print(labbels.shape)
 
 val_set = torch.utils.data.TensorDataset(X_val, Y_val)
 val_loader = torch.utils.data.DataLoader(val_set, batch_size=batch_size, shuffle=False)
+val_loader = WrappedDataLoader(val_loader, transpose)
 
-print(X_train.shape) # torch.Size([624, 20, 5])
-print(Y_train.shape) # torch.Size([624, 5])
-print(X_val.shape)
-print(Y_val.shape)
+print('='*10,'Dataset','='*10)
+print('X_train->', X_train.shape) # torch.Size([624, 20, 5])
+print('Y_train->',Y_train.shape) # torch.Size([624, 5])
+print('X_val->  ',X_val.shape)
+print('Y_val->  ',Y_val.shape)
 
 class My_loss(nn.Module):
     def __init__(self, scaler):
@@ -79,12 +107,13 @@ class Encoder(nn.Module):
         super().__init__()
         self.hidden_size = hidden_size
         self.n_layers = n_layers
-        
+        self.dropout = dropout
+
         self.lstm = nn.LSTM(input_size, hidden_size, n_layers)
         
     def forward(self, x):
         # x: input batch data, size: [input_seq_len, batch_size, feature_size]
-        output, (hidden, cell) = self.lstm(x)
+        _, (hidden, cell) = self.lstm(x)
         return hidden, cell
 
 
@@ -94,6 +123,7 @@ class Decoder(nn.Module):
         self.output_size = output_size
         self.hidden_size = hidden_size
         self.n_layers = n_layers
+        self.dropout = dropout
 
         self.lstm = nn.LSTM(output_size, hidden_size, n_layers)
         self.linear = nn.Linear(hidden_size, output_size)
@@ -108,7 +138,7 @@ class Decoder(nn.Module):
         x = x.unsqueeze(0)  # -->[1, batch_size, feature_size]
         
         output, (hidden, cell) = self.lstm(x, (hidden, cell))
-        prediction = self.linear(output)
+        prediction = self.linear(output.squeeze(0))
 
         return prediction, hidden, cell    
 
@@ -126,39 +156,69 @@ class Seq2Seq(nn.Module):
 
     def forward(self, x, y, teacher_forcing_ratio=0.5):
         #print(y)
+        #print('---------Seq2Seq---------')
         #print('x->',x.shape)
         #print('y->',y.shape)
-
-        x = x.permute(1,0,2) #我們的 dataloader是 [batch, seq, dim]
+        #print(x.shape)
+        #print(x)
+        
+        #x = x.permute(1,0,2) #我們的 dataloader是 [batch, seq, dim]
         #print('x->',x.shape)
-        y = y.unsqueeze(0)#.permute(1,0,2) #但為了方便操作LSTM，直接把它擺成[seq, batch, dim]，output再把它擺回來
+        #y = y.unsqueeze(0)#.permute(1,0,2) #但為了方便操作LSTM，直接把它擺成[seq, batch, dim]，output再把它擺回來
         #print('y->',y.shape)
         """
         x = [input_seq_len, batch_size, feature_size]
         y = [target_seq_len, batch_size, feature_size]
         """
         batch_size = x.shape[1]
+        y = y.transpose(0, 1).unsqueeze(0)
         target_len = y.shape[0]
-        
+        #print('x->', x.shape)
+        #print('y->', y.shape)
         # tensor to store decoder outputs of each time step
-        outputs = torch.zeros(y.shape).to(self.device) 
-        
+        #outputs = torch.zeros(y.shape).to(self.device) 
+        outputs = torch.zeros(target_len, batch_size, self.decoder.output_size).to(self.device) 
         hidden, cell = self.encoder(x)
         decoder_input = x[-1, :, :] # first input to decoder is last of x
         
         for i in range(target_len):
             output, hidden, cell = self.decoder(decoder_input, hidden, cell)
             # place predictions in a tensor holding predictions for each time step
-            outputs[i] = torch.squeeze(output,0)
+            #print(output)
+            #print(output.shape)
+            #print(outputs.shape)
+
+            outputs[i] = output #torch.squeeze(output,0)
             
             teacher_forcing = random.random() < teacher_forcing_ratio
             # output is the same shape as decorder input-->[batch_size, feature_size]
             # so we use output directly as input or use true lable depending on teacher_forcing flag
-            decoder_input = y[i] if teacher_forcing else torch.squeeze(output,0)
+            decoder_input = y[i] if teacher_forcing else output #torch.squeeze(output,0)
         
-        return outputs.permute(1,0,2)
+        return outputs #.permute(1,0,2)
 
 if __name__=='__main__':
+    '''
+    INPUT_DIM = 5
+    OUTPUT_DIM = 5
+    ENC_EMB_DIM = 36
+    DEC_EMB_DIM = 36
+    HID_DIM = 128
+    N_LAYERS = 3
+    ENC_DROPOUT = 0.3
+    DEC_DROPOUT = 0.3
+    enc = Encoder(INPUT_DIM, ENC_EMB_DIM, HID_DIM, N_LAYERS, ENC_DROPOUT)
+    dec = Decoder(OUTPUT_DIM, DEC_EMB_DIM, HID_DIM, N_LAYERS, DEC_DROPOUT)
+    dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model = Seq2Seq(enc, dec, dev).to(dev)
+    #                   [seq_len, batch_size, feature_size]
+    inputs = torch.zeros((20, 32, 5))
+    labels = torch.zeros((1, 32, 5))
+    outputs = model(inputs, labels)
+    criterion = nn.MSELoss()
+    loss = criterion(outputs, labels)
+    print(loss)
+    '''
     INPUT_DIM = 5
     OUTPUT_DIM = 5
     ENC_EMB_DIM = 36
@@ -173,31 +233,36 @@ if __name__=='__main__':
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     model = Seq2Seq(enc, dec, dev).to(dev)
+    #summary(model, input_size=[(20, 1, 5), (1, 1, 5)])
     #构建损失器
     criterion = nn.MSELoss()
-    
     #构建优化器
     optimizer = optim.SGD(model.parameters(), lr=1e-2, momentum=0.5)
     def train(epoch):
-        runing_loss = 0
-    
+        print('='*10,'Training','='*10)
+        
+        current_loss = 0
         for batchix, datas in enumerate(train_loader):
             inputs, label = datas
-    
+            #print('inputs->', inputs.shape)
+            #print('label->', label.shape)
+
             optimizer.zero_grad()
             output = model(inputs, label)
+            output = output.squeeze(0)
+            #print(output)
+            #print(output.shape)
+            #print(label.shape)
             #print('output->', output.shape, output)
             #print('label->', label.shape,label)
-            loss = criterion(output.squeeze(1),label)
+            label = label.permute(1,0)
+            loss = criterion(output, label)
             loss.backward()
             optimizer.step()
     
-            runing_loss +=loss.item()
-            if batchix%10 == 0:
-                print('[%d %3d] %.3f'%(epoch+1,batchix+1, runing_loss/300))
-                runing_loss = 0
+            print(batchix, loss.item())
         #print(runing_loss/len(train_loader))
-        return print({'outputs': output, 'labels': label})#runing_loss/len(train_loader)
+        #return print({'outputs': output, 'labels': label})#runing_loss/len(train_loader)
     
     def evaluate(model, dataloader, criterion):
         model.eval()
@@ -213,4 +278,5 @@ if __name__=='__main__':
                 loss = criterion(y_pred, y)
                 epoch_loss += loss.item()
             #return epoch_loss / len(dataloader)
-    #train(1000)
+    train(100)
+    

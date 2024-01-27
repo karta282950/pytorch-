@@ -74,12 +74,8 @@ if __name__ == '__main__':
     test_subsampler = torch.utils.data.SubsetRandomSampler(test_ids)
     
     # Define data loaders for training and testing data in this fold
-    trainloader = torch.utils.data.DataLoader(
-                      dataset, 
-                      batch_size=32, sampler=train_subsampler)
-    testloader = torch.utils.data.DataLoader(
-                      dataset,
-                      batch_size=32, sampler=test_subsampler)
+    trainloader = torch.utils.data.DataLoader(dataset, batch_size=32, sampler=train_subsampler)
+    testloader = torch.utils.data.DataLoader(dataset, batch_size=32, sampler=test_subsampler)
     
     # Init the neural network
     network = SimpleConvNet()
@@ -132,8 +128,8 @@ if __name__ == '__main__':
     print('Starting testing')
     
     # Saving the model
-    save_path = f'./model-fold-{fold}.pth'
-    torch.save(network.state_dict(), save_path)
+    #save_path = f'./model-fold-{fold}.pth'
+    #torch.save(network.state_dict(), save_path)
 
     # Evaluationfor this fold
     correct, total = 0, 0

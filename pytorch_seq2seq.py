@@ -1,6 +1,8 @@
 import tqdm
 import pandas as pd
 import numpy as np
+import time
+import os
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import torch
 import torch.nn as nn 
@@ -87,20 +89,6 @@ print('X_train->', X_train.shape) # torch.Size([624, 20, 5])
 print('Y_train->',Y_train.shape) # torch.Size([624, 5])
 print('X_val->  ',X_val.shape)
 print('Y_val->  ',Y_val.shape)
-
-class My_loss(nn.Module):
-    def __init__(self, scaler):
-        super().__init__()
-        self.scaler = scaler
-        
-    def forward(self, output, target):
-        np_output = output.detach().cpu().numpy()
-        np_target = target.detach().cpu().numpy()
-        
-        np_output = np.sqrt(self.scaler.var_[3]) * np_output + self.scaler.mean_[3]
-        np_target = np.sqrt(self.scaler.var_[3]) * np_target + self.scaler.mean_[3]
-        
-        return np.mean(np.absolute(np_output - np_target))
 
 class Encoder(nn.Module):
     def __init__(self, input_size=5, embedding_size=36, hidden_size=128, n_layers=1, dropout=0.3):
@@ -238,11 +226,11 @@ if __name__=='__main__':
     criterion = nn.MSELoss()
     #构建优化器
     optimizer = optim.SGD(model.parameters(), lr=1e-2, momentum=0.5)
-    def train(epoch):
+    def train(model, dataloader):
+        model.train()
         print('='*10,'Training','='*10)
-        
-        current_loss = 0
-        for batchix, datas in enumerate(train_loader):
+        epoch_loss = 0
+        for i, datas in enumerate(dataloader):
             inputs, label = datas
             #print('inputs->', inputs.shape)
             #print('label->', label.shape)
@@ -260,23 +248,51 @@ if __name__=='__main__':
             loss.backward()
             optimizer.step()
     
-            print(batchix, loss.item())
-        #print(runing_loss/len(train_loader))
-        #return print({'outputs': output, 'labels': label})#runing_loss/len(train_loader)
-    
-    def evaluate(model, dataloader, criterion):
+            epoch_loss += loss.item()
+        return epoch_loss / len(dataloader)
+            
+    def evaluate(model, dataloader):
         model.eval()
         epoch_loss = 0
         with torch.no_grad():
-            for i, (x, y) in enumerate(dataloader):
-                x = x.to(dev)
-                y = y.to(dev)
+            for i, datas in enumerate(dataloader):
+                inputs, label = datas
                 
                 # turn off teacher forcing
-                y_pred = model(x, y, teacher_forcing_ratio = 0)
-                
-                loss = criterion(y_pred, y)
+                y_pred = model(inputs, label, teacher_forcing_ratio = 0)
+                inputs = label.permute(1,0)
+                loss = criterion(y_pred, inputs)
                 epoch_loss += loss.item()
-            #return epoch_loss / len(dataloader)
-    train(100)
+        return epoch_loss / len(dataloader)
     
+    def epoch_time(start_time, end_time):
+        elapsed_time = end_time - start_time
+        elapsed_mins = int(elapsed_time / 60)
+        elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
+        return elapsed_mins, elapsed_secs
+
+    N_EPOCHES = 100
+    best_val_loss = float('inf')
+    model_dir = "saved_models/Seq2Seq"
+    saved_model_path = model_dir + "/best_seq2seq.pt"
+    if os.path.isfile(saved_model_path):
+        model.load_state_dict(torch.load(saved_model_path))
+        print("successfully load previous best model parameters")
+        
+    for epoch in range(N_EPOCHES):
+        start_time = time.time()
+        
+        train_loss = train(model, train_loader)
+        val_loss = evaluate(model, val_loader)
+        
+        end_time = time.time()
+        
+        mins, secs = epoch_time(start_time, end_time)
+        
+        print(F'Epoch: {epoch+1:02} | Time: {mins}m {secs}s')
+        print(F'\tTrain Loss: {train_loss:.3f}')
+        print(F'\t Val. Loss: {val_loss:.3f}')
+
+        if val_loss < best_val_loss:
+            os.makedirs(model_dir, exist_ok=True)
+            torch.save(model.state_dict(), saved_model_path)

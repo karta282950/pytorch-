@@ -1,0 +1,10 @@
+python sunspots_example.py
+python sunspots_example.py
+python sunspots_example.py
+python sunspots_example.py
+python sunspots_example.py
+python sunspots_example.py
+python sunspots_example.py
+python sunspots_example.py
+python sunspots_example.py
+python sunspots_example.py

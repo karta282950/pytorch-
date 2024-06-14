@@ -20,8 +20,8 @@ lr = 1e-3
 num_classes = 2
 num_workers = 4
 
-train = pd.read_csv('')
-test = pd.read_csv('')
+#train = pd.read_csv('')
+#test = pd.read_csv('')
 
 class SmartDataset(Dataset):
   def __init__(self, data: pd.core.frame.DataFrame, is_train: bool=True):
@@ -55,13 +55,13 @@ class SmartDataModule(pl.LightningDataModule):
     #Y_train = encoder.fit_transform(Y_train.ravel())
 
   def train_dataloader(self):
-    return DataLoader(self.train_df, batch_size=self.batch_szie, shuffle=True, pin_memory=True, num_workers=self.num_workers)
+    return DataLoader(self.train_df, batch_size=self.batch_szie, shuffle=True, pin_memory=True)
   
   def val_dataloader(self):
-    return DataLoader(self.val_df, batch_size=self.batch_szie, shuffle=True, pin_memory=True, num_workers=self.num_workers)
+    return DataLoader(self.val_df, batch_size=self.batch_szie, shuffle=True, pin_memory=True)
 
   def test_dataloader(self):
-    return DataLoader(self.test_df, batch_size=self.batch_szie, shuffle=False, pin_memory=True, num_workers=self.num_workers)
+    return DataLoader(self.test_df, batch_size=self.batch_szie, shuffle=False, pin_memory=True)
   
 class CNN1D(pl.LightningModule):
   def __init__(self, lr=1e-3, num_epochs=100):
@@ -132,6 +132,7 @@ csv_logger = CSVLogger('./', name='linear', version='0'),
 
 data_smart = SmartDataModule()
 data_smart.setup()
+print(next(iter(data_smart.train_dataloader()))[0].shape)
 model = CNN1D()
 trainer = pl.Trainer(max_epochs=100,
                   callbacks=[ckpt_callback, pbar, early_stopping],

@@ -14,7 +14,7 @@ from pytorch_lightning.loggers import WandbLogger
 
 pl_logger = WandbLogger(name='exp2', project="pl_mnist")
 
-device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+device = torch.device('mps') if torch.cuda.is_available() else torch.device('cpu')
 
 class MNISTDataMudle(pl.LightningDataModule):
     def __init__(self, data_dir: str='./data/mnist', batch_size: int=32, num_workers: int=1):
